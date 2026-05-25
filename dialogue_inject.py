@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-dialogue_inject — Claude Code hook for injecting prior dialogue context.
+dialogue_inject — OpenClaude hook for injecting prior dialogue context.
 
 Queries SQLite for recent dialogue turns and prints them to stdout so
-Claude Code injects them as system context.
+OpenClaude injects them as system context.
 
 On SessionStart: last N turns from most recent session in same project_dir.
 On PreCompact: last N turns from current session (preserves across compaction).

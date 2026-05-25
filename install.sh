@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install dialogue-memory hooks into Claude Code / OpenClaude
+# Install dialogue-memory hooks into OpenClaude
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

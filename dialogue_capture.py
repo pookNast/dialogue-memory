@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dialogue_capture — Claude Code hook for capturing conversation dialogue to SQLite.
+dialogue_capture — OpenClaude hook for capturing conversation dialogue to SQLite.
 
 Captures user prompts (UserPromptSubmit) and assistant text responses (Stop).
 Strips tool calls, thinking blocks, and tool results — stores only dialogue.

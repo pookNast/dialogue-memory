@@ -1,6 +1,6 @@
 # dialogue-memory
 
-Rolling conversation memory for Claude Code and OpenClaude with local LLMs.
+Rolling conversation memory for [OpenClaude](https://github.com/Gitlawb/openclaude) and local LLMs.
 
 ## Problem
 
@@ -36,7 +36,7 @@ Only `dialogue_capture.py` and `dialogue_inject.py` are required. The Qdrant and
 ## Requirements
 
 - Python 3.8+
-- Claude Code or [OpenClaude](https://github.com/Gitlawb/openclaude) with hook support
+- [OpenClaude](https://github.com/Gitlawb/openclaude) with hook support
 - SQLite3 (included in Python stdlib)
 - **Optional:** Qdrant vector database + Ollama with `nomic-embed-text`
 - **Optional:** Obsidian vault
@@ -76,7 +76,7 @@ On every user prompt, the hook stores the raw text (after stripping slash comman
 
 ### Injection (SessionStart + PreCompact)
 
-When a new session starts or auto-compaction triggers, the hook queries SQLite for the most recent dialogue turns (same session for PreCompact, same project directory for SessionStart) and prints them to stdout. Claude Code injects this as a system-level context message.
+When a new session starts or auto-compaction triggers, the hook queries SQLite for the most recent dialogue turns (same session for PreCompact, same project directory for SessionStart) and prints them to stdout. OpenClaude injects this as a system-level context message.
 
 ### Semantic Search (Cron, optional)
 
