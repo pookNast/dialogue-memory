@@ -9,6 +9,8 @@ from pathlib import Path
 
 from config import DB_PATH, LOG_DIR
 
+_schema_initialized = False
+
 
 def get_connection(timeout: int = 2) -> sqlite3.Connection:
     """Get a WAL-mode SQLite connection, creating DB if needed.
@@ -17,18 +19,24 @@ def get_connection(timeout: int = 2) -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH), timeout=timeout)
     conn.execute("PRAGMA journal_mode=WAL")
 
+    global _schema_initialized
+
     # Integrity check — auto-recover from corruption
     try:
         result = conn.execute("PRAGMA quick_check").fetchone()
         if result[0] != "ok":
             raise sqlite3.DatabaseError("quick_check failed")
-        init_schema(conn)
+        if not _schema_initialized:
+            init_schema(conn)
+            _schema_initialized = True
     except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
         conn.close()
         _recover_corrupt_db(str(e))
+        _schema_initialized = False
         conn = sqlite3.connect(str(DB_PATH), timeout=timeout)
         conn.execute("PRAGMA journal_mode=WAL")
         init_schema(conn)
+        _schema_initialized = True
 
     return conn
 

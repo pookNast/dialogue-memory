@@ -92,11 +92,24 @@ def capture_user_prompt(input_data: dict):
     conn.close()
 
 
+def validate_transcript_path(path: str) -> bool:
+    """Validate transcript_path is safe to open."""
+    if not path or not os.path.isabs(path):
+        return False
+    if ".." in path:
+        return False
+    if not path.endswith(".jsonl"):
+        return False
+    if not os.path.isfile(path):
+        return False
+    return True
+
+
 def capture_assistant_response(input_data: dict):
     """Extract assistant text responses from transcript at Stop."""
     session_id = input_data.get("session_id", "")
     transcript_path = input_data.get("transcript_path", "")
-    if not session_id or not transcript_path or not os.path.exists(transcript_path):
+    if not session_id or not validate_transcript_path(transcript_path):
         return
 
     assistant_texts = []
@@ -125,7 +138,8 @@ def capture_assistant_response(input_data: dict):
                             text = block.get("text", "")
                             if text.strip():
                                 assistant_texts.append(text)
-    except Exception:
+    except Exception as e:
+        log(f"ERROR reading transcript: {e}")
         return
 
     if not assistant_texts:
