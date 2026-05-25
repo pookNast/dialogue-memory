@@ -33,16 +33,18 @@ def main():
     if not DB_PATH.exists():
         return
 
+    from db import get_connection as _get_conn
     today = date.today().isoformat()
-    conn = sqlite3.connect(str(DB_PATH), timeout=5)
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn = _get_conn(timeout=5)
 
-    rows = conn.execute(
-        "SELECT session_id, turn_num, ts, speaker, content "
-        "FROM dialogue_turns WHERE DATE(ts) = ? ORDER BY session_id, turn_num",
-        (today,)
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT session_id, turn_num, ts, speaker, content "
+            "FROM dialogue_turns WHERE DATE(ts) = ? ORDER BY session_id, turn_num",
+            (today,)
+        ).fetchall()
+    finally:
+        conn.close()
 
     if not rows:
         log(f"No dialogue for {today}")

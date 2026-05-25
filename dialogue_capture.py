@@ -56,15 +56,22 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def get_next_turn_num(conn, session_id: str, speaker: str) -> int:
-    """Get the next turn number. User: even (0,2,4...), Assistant: odd (1,3,5...)."""
-    row = conn.execute(
-        "SELECT MAX(turn_num) FROM dialogue_turns WHERE session_id = ? AND speaker = ?",
-        (session_id, speaker)
-    ).fetchone()
-    if row[0] is None:
-        return 0 if speaker == "user" else 1
-    return row[0] + 2
+def insert_turn_atomic(conn, session_id: str, speaker: str, content: str, tokens_est: int, project_dir: str):
+    """Atomically compute turn_num and insert in a single SQL statement.
+    User turns: even (0,2,4...), Assistant turns: odd (1,3,5...).
+    Uses BEGIN IMMEDIATE to hold write lock during SELECT+INSERT."""
+    start = 0 if speaker == "user" else 1
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO dialogue_turns (session_id, turn_num, speaker, content, tokens_est, project_dir) "
+            "VALUES (?, COALESCE((SELECT MAX(turn_num) FROM dialogue_turns WHERE session_id = ? AND speaker = ?), ? - 2) + 2, ?, ?, ?, ?)",
+            (session_id, session_id, speaker, start, speaker, content, tokens_est, project_dir)
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def capture_user_prompt(input_data: dict):
@@ -81,15 +88,11 @@ def capture_user_prompt(input_data: dict):
         return
 
     conn = get_connection()
-    turn_num = get_next_turn_num(conn, session_id, "user")
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-
-    conn.execute(
-        "INSERT OR IGNORE INTO dialogue_turns (session_id, turn_num, speaker, content, tokens_est, project_dir) VALUES (?, ?, ?, ?, ?, ?)",
-        (session_id, turn_num, "user", content, estimate_tokens(content), project_dir)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
+        insert_turn_atomic(conn, session_id, "user", content, estimate_tokens(content), project_dir)
+    finally:
+        conn.close()
 
 
 def validate_transcript_path(path: str) -> bool:
@@ -100,7 +103,18 @@ def validate_transcript_path(path: str) -> bool:
         return False
     if not path.endswith(".jsonl"):
         return False
-    if not os.path.isfile(path):
+    resolved = Path(path).resolve()
+    if resolved.is_symlink():
+        log(f"REJECTED symlink transcript_path: {path}")
+        return False
+    if not resolved.is_file():
+        return False
+    # Must live under ~/.claude/
+    claude_dir = Path.home() / ".claude"
+    try:
+        resolved.relative_to(claude_dir)
+    except ValueError:
+        log(f"REJECTED transcript_path outside ~/.claude/: {path}")
         return False
     return True
 
@@ -146,20 +160,15 @@ def capture_assistant_response(input_data: dict):
         return
 
     conn = get_connection()
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-
-    for text in assistant_texts:
-        content = clean_text(text)
-        if not content or len(content) < 10:
-            continue
-        turn_num = get_next_turn_num(conn, session_id, "assistant")
-        conn.execute(
-            "INSERT OR IGNORE INTO dialogue_turns (session_id, turn_num, speaker, content, tokens_est, project_dir) VALUES (?, ?, ?, ?, ?, ?)",
-            (session_id, turn_num, "assistant", content, estimate_tokens(content), project_dir)
-        )
-
-    conn.commit()
-    conn.close()
+    try:
+        project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
+        for text in assistant_texts:
+            content = clean_text(text)
+            if not content or len(content) < 10:
+                continue
+            insert_turn_atomic(conn, session_id, "assistant", content, estimate_tokens(content), project_dir)
+    finally:
+        conn.close()
 
 
 def main():

@@ -116,42 +116,42 @@ def main():
         log("Failed to ensure collection")
         return
 
-    conn = sqlite3.connect(str(DB_PATH), timeout=5)
-    conn.execute("PRAGMA journal_mode=WAL")
+    from db import get_connection as _get_conn
+    conn = _get_conn(timeout=5)
 
-    rows = conn.execute(
-        "SELECT id, session_id, turn_num, ts, speaker, content, project_dir "
-        "FROM dialogue_turns WHERE embedding_done = 0 ORDER BY id LIMIT ?",
-        (EMBED_BATCH_SIZE,)
-    ).fetchall()
+    try:
+        rows = conn.execute(
+            "SELECT id, session_id, turn_num, ts, speaker, content, project_dir "
+            "FROM dialogue_turns WHERE embedding_done = 0 ORDER BY id LIMIT ?",
+            (EMBED_BATCH_SIZE,)
+        ).fetchall()
 
-    if not rows:
-        conn.close()
-        return
+        if not rows:
+            return
 
-    embedded = 0
-    for row_id, session_id, turn_num, ts, speaker, content, project_dir in rows:
-        vector = embed_text(f"{speaker}: {content}")
-        if vector is None:
-            continue
+        embedded = 0
+        for row_id, session_id, turn_num, ts, speaker, content, project_dir in rows:
+            vector = embed_text(f"{speaker}: {content}")
+            if vector is None:
+                continue
 
-        payload = {
-            "session_id": session_id,
-            "turn_num": turn_num,
-            "speaker": speaker,
-            "content": content[:1000],
-            "ts": ts,
-            "project_dir": project_dir or "",
-        }
+            payload = {
+                "session_id": session_id,
+                "turn_num": turn_num,
+                "speaker": speaker,
+                "content": content[:1000],
+                "ts": ts,
+                "project_dir": project_dir or "",
+            }
 
-        if upsert_point(make_point_id(session_id, turn_num), vector, payload):
-            conn.execute("UPDATE dialogue_turns SET embedding_done = 1 WHERE id = ?", (row_id,))
-            embedded += 1
+            if upsert_point(make_point_id(session_id, turn_num), vector, payload):
+                conn.execute("UPDATE dialogue_turns SET embedding_done = 1 WHERE id = ?", (row_id,))
+                embedded += 1
 
-    conn.commit()
-    conn.close()
-    if embedded:
+        conn.commit()
         log(f"Embedded {embedded}/{len(rows)} turns")
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

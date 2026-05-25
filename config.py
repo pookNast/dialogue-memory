@@ -34,8 +34,12 @@ OBSIDIAN_DAILY_DIR = Path(os.environ.get(
     str(Path.home() / "obsidian-vault" / "Daily")
 ))
 
+# Retention
+RETENTION_DAYS = int(os.environ.get("DIALOGUE_MEMORY_RETENTION_DAYS", "90"))
+
 # Tuning
 MAX_CONTENT_LEN = int(os.environ.get("DIALOGUE_MEMORY_MAX_CONTENT", "2000"))
 MAX_INJECT_TURNS = int(os.environ.get("DIALOGUE_MEMORY_MAX_INJECT_TURNS", "8"))
 MAX_INJECT_CHARS = int(os.environ.get("DIALOGUE_MEMORY_MAX_INJECT_CHARS", "4000"))
 EMBED_BATCH_SIZE = int(os.environ.get("DIALOGUE_MEMORY_EMBED_BATCH", "20"))
+SEMANTIC_INJECT = os.environ.get("DIALOGUE_MEMORY_SEMANTIC_INJECT", "false").lower() in ("true", "1", "yes")

@@ -7,9 +7,29 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from config import DB_PATH, LOG_DIR
+from config import DB_PATH, LOG_DIR, RETENTION_DAYS
 
 _schema_initialized = False
+
+
+def prune_old_turns(conn: sqlite3.Connection):
+    """Delete turns older than RETENTION_DAYS. Called only when row count > 1000."""
+    count = conn.execute("SELECT COUNT(*) FROM dialogue_turns").fetchone()[0]
+    if count <= 1000:
+        return
+    result = conn.execute(
+        "DELETE FROM dialogue_turns WHERE ts < datetime('now', ?)",
+        (f"-{RETENTION_DAYS} days",),
+    )
+    pruned = result.rowcount
+    conn.commit()
+    if pruned > 0:
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            with open(LOG_DIR / "dialogue_capture.log", "a") as f:
+                f.write(f"[{datetime.now().isoformat()}] PRUNED: {pruned} turns older than {RETENTION_DAYS} days (was {count} rows)\n")
+        except Exception:
+            pass
 
 
 def get_connection(timeout: int = 2) -> sqlite3.Connection:
@@ -17,18 +37,19 @@ def get_connection(timeout: int = 2) -> sqlite3.Connection:
     Auto-recovers from corruption by moving corrupt DB aside and recreating."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=timeout)
-    conn.execute("PRAGMA journal_mode=WAL")
 
     global _schema_initialized
 
     # Integrity check — auto-recover from corruption
     try:
+        conn.execute("PRAGMA journal_mode=WAL")
         result = conn.execute("PRAGMA quick_check").fetchone()
         if result[0] != "ok":
             raise sqlite3.DatabaseError("quick_check failed")
         if not _schema_initialized:
             init_schema(conn)
             _schema_initialized = True
+        prune_old_turns(conn)
     except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
         conn.close()
         _recover_corrupt_db(str(e))

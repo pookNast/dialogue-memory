@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dialogue-memory"
+version = "0.1.0"
+description = "Capture, store, and search dialogue memory for AI agents"
+requires-python = ">=3.8"
+license = "MIT"
+
+[project.optional-dependencies]
+embed = ["httpx"]
+test = ["pytest"]
+
+[project.scripts]
+dialogue-health = "dialogue_health:main"
+dialogue-capture = "dialogue_capture:main"
