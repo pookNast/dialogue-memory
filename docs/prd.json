@@ -1,0 +1,128 @@
+{
+  "project": "dialogue-memory",
+  "version": "1.0.0",
+  "description": "Rolling conversation memory for OpenClaude + local LLMs",
+  "repo": "git@github.com:pookNast/dialogue-memory.git",
+  "repo_forgejo": "ssh://git@192.168.183.110:2222/pook/dialogue-memory.git",
+  "stack": ["python3", "sqlite3", "fts5"],
+  "optional_stack": ["qdrant", "ollama", "obsidian"],
+  "waves": [
+    {
+      "id": "W0",
+      "name": "Core Hardening",
+      "description": "Fix all audit gaps, add resilience, testing",
+      "items": [
+        {
+          "id": "W0-S0",
+          "title": "Add DB auto-recovery on corruption",
+          "status": "done",
+          "files": ["db.py"],
+          "acceptance": ["PRAGMA quick_check on corrupt DB triggers recovery", "Corrupt DB moved to .corrupt-* suffix", "Recovery logged"],
+          "agent": "dev"
+        },
+        {
+          "id": "W0-S1",
+          "title": "Add transcript_path validation",
+          "status": "pending",
+          "files": ["dialogue_capture.py"],
+          "acceptance": ["transcript_path must be absolute", "transcript_path must exist", "No path traversal via ../"],
+          "agent": "security"
+        },
+        {
+          "id": "W0-S2",
+          "title": "Add retention policy (auto-prune old turns)",
+          "status": "pending",
+          "files": ["db.py", "config.py"],
+          "acceptance": ["DIALOGUE_MEMORY_RETENTION_DAYS env var (default 90)", "Prune runs on get_connection if >1000 rows", "FTS stays in sync after prune"],
+          "agent": "dev"
+        },
+        {
+          "id": "W0-S3",
+          "title": "Add health check script",
+          "status": "pending",
+          "files": ["dialogue_health.py"],
+          "acceptance": ["Reports: DB exists, row count, FTS intact, embedding backlog, Qdrant reachable", "Exit 0 healthy, exit 1 unhealthy", "JSON output for monitoring"],
+          "agent": "siteops"
+        },
+        {
+          "id": "W0-S4",
+          "title": "Add unit tests",
+          "status": "pending",
+          "files": ["tests/test_capture.py", "tests/test_inject.py", "tests/test_db.py"],
+          "acceptance": ["Test clean_text strips thinking/tool blocks", "Test FTS sync triggers", "Test turn_num sequencing", "Test corruption recovery", "Test idempotent INSERT OR IGNORE"],
+          "agent": "dev"
+        }
+      ]
+    },
+    {
+      "id": "W1",
+      "name": "Release Readiness",
+      "description": "Packaging, CI, versioning, docs",
+      "items": [
+        {
+          "id": "W1-S0",
+          "title": "Add pyproject.toml with version + metadata",
+          "status": "pending",
+          "files": ["pyproject.toml"],
+          "acceptance": ["name = dialogue-memory", "version = 0.1.0", "python_requires >= 3.8", "No external deps for core"],
+          "agent": "dev"
+        },
+        {
+          "id": "W1-S1",
+          "title": "Add CHANGELOG.md",
+          "status": "pending",
+          "files": ["CHANGELOG.md"],
+          "acceptance": ["Keep a Changelog format", "v0.1.0 entry with all current features"],
+          "agent": "dev"
+        },
+        {
+          "id": "W1-S2",
+          "title": "Add GitHub Actions CI",
+          "status": "pending",
+          "files": [".github/workflows/ci.yml"],
+          "acceptance": ["Runs on push to main", "Python 3.8, 3.11, 3.13 matrix", "Runs unit tests", "Syntax check all .py files"],
+          "agent": "devops"
+        },
+        {
+          "id": "W1-S3",
+          "title": "Add CONTRIBUTING.md",
+          "status": "pending",
+          "files": ["CONTRIBUTING.md"],
+          "acceptance": ["Setup instructions", "How to run tests", "PR guidelines"],
+          "agent": "dev"
+        }
+      ]
+    },
+    {
+      "id": "W2",
+      "name": "Enhanced Features",
+      "description": "Semantic search integration, monitoring, advanced injection",
+      "items": [
+        {
+          "id": "W2-S0",
+          "title": "Add semantic search fallback to dialogue_inject",
+          "status": "pending",
+          "files": ["dialogue_inject.py"],
+          "acceptance": ["If no recent SQLite turns, query Qdrant for semantically similar past dialogue", "Graceful fallback if Qdrant unreachable", "Configurable via DIALOGUE_MEMORY_SEMANTIC_INJECT=true"],
+          "agent": "architect"
+        },
+        {
+          "id": "W2-S1",
+          "title": "Add FTS search CLI utility",
+          "status": "pending",
+          "files": ["dialogue_search.py"],
+          "acceptance": ["python3 dialogue_search.py 'keyword' returns matching turns", "Supports --session, --speaker, --limit flags", "JSON and human-readable output modes"],
+          "agent": "dev"
+        },
+        {
+          "id": "W2-S2",
+          "title": "Add Prometheus metrics endpoint",
+          "status": "pending",
+          "files": ["dialogue_metrics.py"],
+          "acceptance": ["dialogue_turns_total gauge", "dialogue_embedding_backlog gauge", "dialogue_db_size_bytes gauge", "Exposition format on stdout for cron scraping"],
+          "agent": "siteops"
+        }
+      ]
+    }
+  ]
+}

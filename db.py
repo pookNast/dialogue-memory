@@ -2,19 +2,51 @@
 SQLite database initialization and helpers for dialogue-memory.
 """
 
+import os
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
-from config import DB_PATH
+from config import DB_PATH, LOG_DIR
 
 
 def get_connection(timeout: int = 2) -> sqlite3.Connection:
-    """Get a WAL-mode SQLite connection, creating DB if needed."""
+    """Get a WAL-mode SQLite connection, creating DB if needed.
+    Auto-recovers from corruption by moving corrupt DB aside and recreating."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=timeout)
     conn.execute("PRAGMA journal_mode=WAL")
-    init_schema(conn)
+
+    # Integrity check — auto-recover from corruption
+    try:
+        result = conn.execute("PRAGMA quick_check").fetchone()
+        if result[0] != "ok":
+            raise sqlite3.DatabaseError("quick_check failed")
+        init_schema(conn)
+    except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+        conn.close()
+        _recover_corrupt_db(str(e))
+        conn = sqlite3.connect(str(DB_PATH), timeout=timeout)
+        conn.execute("PRAGMA journal_mode=WAL")
+        init_schema(conn)
+
     return conn
+
+
+def _recover_corrupt_db(reason: str):
+    """Move corrupt DB aside and log the recovery."""
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    for suffix in ("", "-wal", "-shm"):
+        src = Path(f"{DB_PATH}{suffix}")
+        if src.exists():
+            dst = Path(f"{DB_PATH}.corrupt-{ts}{suffix}")
+            src.rename(dst)
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(LOG_DIR / "dialogue_capture.log", "a") as f:
+            f.write(f"[{datetime.now().isoformat()}] DB RECOVERED: {reason} — corrupt files moved to {DB_PATH}.corrupt-{ts}*\n")
+    except Exception:
+        pass
 
 
 def init_schema(conn: sqlite3.Connection):
